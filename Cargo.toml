@@ -1,0 +1,8 @@
+[package]
+name = "jam"
+version = "0.1.0"
+authors = ["KalyanJ"]
+edition = "2018"
+
+[dependencies]
+amethyst = "*"
