@@ -1359,13 +1359,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jam"
-version = "0.1.0"
-dependencies = [
- "amethyst 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "jpeg-decoder"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1453,6 +1446,13 @@ dependencies = [
 name = "libm"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "limiting-reagent"
+version = "0.1.0"
+dependencies = [
+ "amethyst 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "line_drawing"

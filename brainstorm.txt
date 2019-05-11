@@ -1,0 +1,17 @@
+Limiting Reagent:
+
+Main Idea: Player is a wizard that can use resources in a level to craft potions (only way to attack/heal etc)
+- Platformer
+- enemies to battle
+- end goal to reach (classic platformer)
+- plays a little bit like a puzzle platformer due to potion choices
+
+Potion Types:
+- explosive
+- agility boost (jump/speed)
+- health
+- Might be nice just to have 3 simple types,
+  player makes choices as to which they should invest in
+
+Gameplay:
+- restart button in case the stage becomes impossible

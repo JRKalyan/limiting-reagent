@@ -1,5 +1,5 @@
 [package]
-name = "jam"
+name = "limiting-reagent"
 version = "0.1.0"
 authors = ["KalyanJ"]
 edition = "2018"

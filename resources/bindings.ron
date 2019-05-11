@@ -1,0 +1,6 @@
+(
+    axes: {
+        "player": Emulated(pos: Key(D), neg: Key(A)),
+    },
+    actions: {},
+)
