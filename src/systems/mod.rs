@@ -1,5 +1,7 @@
 mod player;
-mod weight;
+mod mover;
+mod animation;
 
 pub use self::player::PlayerSystem;
-pub use self::weight::WeightSystem;
+pub use self::mover::MoverSystem;
+pub use self::animation::SpriteAnimationSystem;

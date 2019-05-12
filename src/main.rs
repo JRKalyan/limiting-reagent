@@ -39,7 +39,8 @@ fn main() -> amethyst::Result<()> {
         .with_bundle(TransformBundle::new())?
         .with_bundle(input_bundle)?
         .with(systems::PlayerSystem{}, "player_system",  &["input_system"])
-        .with(systems::WeightSystem{}, "weight_system", &["player_system"]);
+        .with(systems::MoverSystem{}, "weight_system", &["player_system"])
+        .with(systems::SpriteAnimationSystem{}, "sprite_animation_system", &[]);
 
     let mut game = Application::new("./", LevelState{}, game_data)?;
 
