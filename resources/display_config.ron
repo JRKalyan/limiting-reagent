@@ -1,6 +1,6 @@
 (
     title: "Limiting Reagent",
-    dimensions: Some((800, 600)),
+    dimensions: Some((800, 450)),
     max_dimensions: None,
     min_dimensions: None,
     fullscreen: false,
