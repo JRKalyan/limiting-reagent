@@ -46,13 +46,15 @@ fn main() -> amethyst::Result<()> {
         .with_bundle(TransformBundle::new())?
         .with_bundle(input_bundle)?
         .with_bundle(UiBundle::<String, String>::new())?
-        .with(systems::PlayerSystem{}, "player_system",  &["input_system"])
+        .with(systems::PlayerSystem{health_tick_rate: 5.0, last_tick: 0.0}, 
+            "player_system",  &["input_system"])
         .with(systems::EnemySystem{}, "enemy_system", &["player_system"])
         .with(systems::MoverSystem{}, "mover_system", &["enemy_system"])
         .with(systems::SpriteAnimationSystem{}, "sprite_animation_system", &["mover_system"])
-        .with(systems::CameraSystem{}, "camera_system", &["player_system"]);
+        .with(systems::CameraSystem{}, "camera_system", &["player_system"])
+        .with(systems::PotionSystem{}, "potion_system", &[]);
 
-    let mut game = Application::new("./", LevelState{}, game_data)?;
+    let mut game = Application::new("./", LevelState{sprite_sheet: None}, game_data)?;
 
     game.run();
 

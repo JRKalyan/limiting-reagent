@@ -31,14 +31,15 @@ impl<'s> System<'s> for CameraSystem {
             player_transform = Some(
                 TransformData{x: transform.translation().x, y: transform.translation().y});
         }
-        let mut camera_x = 0.0;
-        let mut camera_y = 0.0;
         if let Some(transform_data) = player_transform {
-            camera_x = transform_data.x;
-            camera_y = transform_data.y;
-        }
-        for (_camera, transform) in (&cameras, &mut transforms).join() {
-            transform.set_xyz(camera_x - CAMERA_WIDTH / 2.0, camera_y - CAMERA_HEIGHT / 2.0, 1.0);
+
+            let camera_x = transform_data.x;
+            let camera_y = transform_data.y;
+
+            for (_camera, transform) in (&cameras, &mut transforms).join() {
+                transform.set_xyz(camera_x - CAMERA_WIDTH / 2.0, camera_y - CAMERA_HEIGHT / 2.0, 1.0);
+            }
+
         }
     }
 

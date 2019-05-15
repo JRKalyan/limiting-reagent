@@ -3,18 +3,21 @@ use rand::Rng;
 
 use amethyst::prelude::*;
 use amethyst::core::transform::Transform;
+use amethyst::core::nalgebra::Vector3;
 use amethyst::renderer::{
     Camera, Projection, PngFormat, SpriteSheetFormat, TextureMetadata, Texture,
-    SpriteSheet, SpriteSheetHandle, SpriteRender, Transparent,
+    SpriteSheet, SpriteSheetHandle, SpriteRender, Transparent, ScreenDimensions
 };
 use amethyst::assets::{AssetStorage, Loader};
 use amethyst::ecs::prelude::{Component, VecStorage, Entity};
 use amethyst::ui::{
-    Anchor, TtfFormat, UiText, UiTransform,
+    Anchor, TtfFormat, UiText, UiTransform, UiImage,
 };
+use amethyst::input::is_key_down;
+use amethyst::Trans::*;
 
 pub const LEVEL_WIDTH: f32 = 800.0;
-pub const LEVEL_HEIGHT: f32 = 450.0;
+pub const LEVEL_HEIGHT: f32 = 3000.0;
 pub const CAMERA_WIDTH: f32 = 400.0;
 pub const CAMERA_HEIGHT: f32 = 225.0;
 pub const PLATFORM_HEIGHT: f32 = 25.0;
@@ -24,28 +27,48 @@ pub const RESOURCE_HEIGHT: f32 = 25.0;
 pub const PLAYER_HEIGHT: f32 = 25.0;
 pub const PLAYER_WIDTH: f32 = 28.0;
 
+pub const POTION_SPEED: f32 = 200.0;
+
 // UI:
-// health
-// score
-// hornwort, mushroom count
 pub struct UiEntities {
     pub score_entity: Entity,
-    //pub hornwort_entity: Entity,
-    //pub mushroom_entity: Entity,
+    pub hornwort_entity: Entity,
+    pub mushroom_entity: Entity,
     pub health_entity: Entity,
+    pub game_over_entity: Entity,
 }
 
 #[derive(Default)]
 pub struct UiValues {
     pub score: i32,
     // TODO write to these from player system
-    pub hornwort: i32,
-    pub mushroom: i32,
     pub health: i32,
+}
+
+// implement a lazy spawner for simplicity..
+#[derive(Default, Debug)]
+pub struct PotionInfo {
+    pub px: f32,
+    pub py: f32,
+    pub mx: f32,
+    pub my: f32,
+}
+
+pub struct PotionSpawner {
+    pub potion: Option<PotionInfo>,
+}
+
+impl Default for PotionSpawner {
+    fn default() -> PotionSpawner {
+        PotionSpawner {
+            potion: std::option::Option::None,
+        }
+    }
 }
 
 #[derive(Default)]
 pub struct LevelState {
+    pub sprite_sheet: Option<SpriteSheetHandle>,
 }
 
 impl LevelState {
@@ -176,7 +199,7 @@ impl LevelState {
                     sprite_sheet: sprite_sheet.clone(),
                     sprite_number: 6,
                 })
-                .with(Ingredient::Hornwort{count: 1})
+                .with(Ingredient::Mushroom{count: 1})
                 .build();
         }
 
@@ -190,6 +213,35 @@ impl LevelState {
             (),
             &world.read_resource(),
         );
+
+
+        let m_texture = {
+            let loader = world.read_resource::<Loader>();
+            let texture_storage = 
+                world.read_resource::<AssetStorage<Texture>>();
+
+            loader.load(
+                "texture/mushroom.png",
+                PngFormat,
+                TextureMetadata::srgb_scale(),
+                (),
+                &texture_storage
+            )
+        };
+
+        let h_texture = {
+            let loader = world.read_resource::<Loader>();
+            let texture_storage = 
+                world.read_resource::<AssetStorage<Texture>>();
+
+            loader.load(
+                "texture/plant.png",
+                PngFormat,
+                TextureMetadata::srgb_scale(),
+                (),
+                &texture_storage
+            )
+        };
 
         let score_transform = UiTransform::new(
             "score".to_string(), Anchor::TopRight,
@@ -212,7 +264,6 @@ impl LevelState {
             "health".to_string(), Anchor::BottomMiddle,
             0.0, 50.0, 1.0, 400.0, 50.0, 0
         );
-
         let health_entity = world
             .create_entity()
             .with(health_transform)
@@ -223,8 +274,89 @@ impl LevelState {
                 50.0,
             ))
             .build();
+
+        let mi_transform = UiTransform::new(
+            "mushroomi".to_string(), Anchor::TopLeft,
+            25.0, -25.0, 1.0, 50.0, 50.0, 0
+        );
+        let m_transform = UiTransform::new(
+            "mushroom".to_string(), Anchor::TopLeft,
+            100.0, -25.0, 1.0, 50.0, 100.0, 0
+        );
+
+        let mi_entity = world
+            .create_entity()
+            .with(mi_transform)
+            .with(UiImage {
+                texture: m_texture,
+            })
+            .build();
+
+        let mushroom_entity = world
+            .create_entity()
+            .with(m_transform)
+            .with(UiText::new(
+                font.clone(),
+                "0".to_string(),
+                [0.0, 0.0, 0.0, 1.0],
+                50.0,
+            ))
+            .build();
+
+        let hi_transform = UiTransform::new(
+            "hornworti".to_string(), Anchor::TopLeft,
+            175.0, -25.0, 1.0, 50.0, 50.0, 0 // todo shift
+        );
+
+        let h_transform = UiTransform::new(
+            "hornwort".to_string(), Anchor::TopLeft,
+            250.0, -25.0, 1.0, 50.0, 50.0, 0 // todo shift
+        );
+
+        let hi_entity = world
+            .create_entity()
+            .with(hi_transform)
+            .with(UiImage {
+                texture: h_texture,
+            })
+            .build();
+
+        let hornwort_entity = world
+            .create_entity()
+            .with(h_transform)
+            .with(UiText::new(
+                font.clone(),
+                "0".to_string(),
+                [0.0, 0.0, 0.0, 1.0],
+                50.0,
+            ))
+            .build();
+
+        let game_over_transform = UiTransform::new(
+            "game_over".to_string(), Anchor::Middle,
+            0.0, 0.0, 1.0, 900.0, 100.0, 0
+        );
+
+        let game_over_entity = world
+            .create_entity()
+            .with(game_over_transform)
+            .with(UiText::new(
+                font.clone(),
+                "".to_string(),
+                [1.0, 0.0, 0.0, 1.0],
+                100.0,
+            ))
+            .build();
         
-        world.add_resource(UiEntities{score_entity, health_entity});
+        world.add_resource(
+            UiEntities {
+                score_entity, 
+                health_entity, 
+                game_over_entity,
+                mushroom_entity,
+                hornwort_entity,
+            }
+        );
     }
 
     fn load_sprite_sheet(world: &mut World) -> SpriteSheetHandle {
@@ -274,10 +406,96 @@ impl SimpleState for LevelState {
         let world = data.world;
 
         let sprite_sheet_handle = LevelState::load_sprite_sheet(world);
+        self.sprite_sheet = Some(sprite_sheet_handle.clone());
 
         LevelState::initialize_ui(world);
         LevelState::create_entities(world, sprite_sheet_handle);
         LevelState::initialize_camera(world);
+
+        world.add_resource(PotionSpawner {
+            potion: std::option::Option::None,
+        });
+    }
+
+    fn handle_event(
+        &mut self,
+        _data: StateData<GameData>,
+        event: StateEvent
+    ) -> SimpleTrans {
+        if let StateEvent::Window(event) = &event {
+            if is_key_down(&event, amethyst::renderer::VirtualKeyCode::Escape) {
+                return Trans::Quit;
+            }
+        }
+        return Trans::None;
+    }
+
+    fn update(
+        &mut self,
+        data: &mut StateData<'_, GameData<'_, '_>>
+    ) -> SimpleTrans {
+        let mut spawn = false;
+        let screen_dim = {
+            let dimensions = data.world.read_resource::<ScreenDimensions>();
+            (dimensions.width(), dimensions.height())
+        };
+        let potion_info = {
+            let mut spawner = data.world.write_resource::<PotionSpawner>();
+            match spawner.potion.take() {
+                Some(potion_info) => {
+                    spawn = true;
+                    potion_info
+                },
+                _ => PotionInfo::default(),
+            }
+        };
+
+        if spawn {
+            if let Some(sprite_sheet) = &self.sprite_sheet {
+                // spawn a potion
+                
+                // TODO translate mouse x/y to world coord
+                let logical_mx = (potion_info.mx / screen_dim.0) * CAMERA_WIDTH;
+                let logical_my = (potion_info.mx / screen_dim.1) * CAMERA_HEIGHT;
+
+                let world_mx = potion_info.px - CAMERA_WIDTH / 2.0 + logical_mx;
+                let world_my = potion_info.py - CAMERA_HEIGHT / 2.0 + logical_my;
+
+                let velocity = 
+                    Vector3::new(
+                        world_mx - potion_info.px, 
+                        world_my - potion_info.py, 0.0
+                    )
+                    .normalize();
+
+                let mut potion_transform = Transform::default();
+                potion_transform.set_xyz(
+                    potion_info.px,  // TODO tune spawn dist
+                    potion_info.py,
+                    0.0
+                );
+                data.world
+                    .create_entity()
+                    .with(potion_transform)
+                    .with(SpriteRender{
+                        sprite_sheet: sprite_sheet.clone(),
+                        sprite_number: 2,
+                    })
+                    .with(Mover{
+                        velocity_x: velocity.x * POTION_SPEED,
+                        velocity_y: velocity.y * POTION_SPEED,
+                        jump_state: JumpState::Airborne,
+                        min_x: 0.0,
+                        max_x: LEVEL_WIDTH,
+                    })
+                    .with(Potion{
+                        width: 10.0, // hacky way to manage our own collisions
+                        height: 10.0,
+                    })
+                    .build();
+            }
+        }
+        Trans::None
     }
 }
 
@@ -288,9 +506,11 @@ pub struct Player {
     pub in_hit: bool, // in hit state until hit_last
     pub last_hit: f32,
     pub last_throw: f32,
+    pub last_heal: f32,
     pub hit_cooldown: f32, // frequently you can get hit
     pub hit_last: f32,
     pub throw_cooldown: f32,
+    pub heal_cooldown: f32,
     pub health: i32,
 
     // Enum map would be nice for this purpose
@@ -304,8 +524,10 @@ impl Player {
             in_hit: false,
             last_hit: 0.0,
             last_throw: 0.0,
+            last_heal: 0.0,
             health: 100,
             hit_cooldown: 1.0,
+            heal_cooldown: 0.3,
             hit_last: 0.2,
             throw_cooldown: 0.5,
             hornwort: 0,
@@ -334,7 +556,6 @@ pub struct Mover {
 
 impl Mover {
     fn new(min_x: f32, max_x: f32) -> Mover {
-        // TODO change constructor to accep tarugments
         Mover {
             velocity_x: 0.0,
             velocity_y: 0.0,
@@ -405,10 +626,18 @@ impl Component for Ingredient {
     type Storage = VecStorage<Self>;
 }
 
-// TODO - if within range of the player move towards the player but not past limits
 pub struct Enemy {
 }
 
 impl Component for Enemy {
+    type Storage = VecStorage<Self>;
+}
+
+pub struct Potion {
+    pub width: f32,
+    pub height: f32,
+}
+
+impl Component for Potion {
     type Storage = VecStorage<Self>;
 }

@@ -2,5 +2,8 @@
     axes: {
         "player": Emulated(pos: Key(D), neg: Key(A)),
     },
-    actions: {},
+    actions: {
+        "throw": [[Mouse(Left)]],
+        "heal": [[Mouse(Right)]],
+    },
 )

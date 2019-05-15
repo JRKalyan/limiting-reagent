@@ -8,6 +8,7 @@ use crate::states::Enemy;
 use crate::states::Player;
 use crate::states::Mover;
 use crate::states::Collider;
+use crate::collision::check_collision;
 
 pub struct EnemySystem {
 }
@@ -36,7 +37,7 @@ impl<'s> System<'s> for EnemySystem {
         for (enemy, e_collider, e_transform) in (&enemies, &colliders, &transforms).join() {
             // check for collision, if so then check for e pressed and match on resource
             for (player, player_collider, player_transform, mover) in (&mut players, &colliders, &transforms, &mut movers).join() {
-                if crate::collision::check_collision(&player_collider, &player_transform, &e_collider, &e_transform) &&
+                if check_collision(&player_collider, &player_transform, &e_collider, &e_transform) &&
                    player.last_hit > player.hit_cooldown {
                     player.in_hit = true;
                     player.last_hit = 0.0;

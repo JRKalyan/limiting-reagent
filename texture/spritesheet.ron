@@ -17,14 +17,14 @@
         (
             x: 56,
             y: 0,
-            width: 28,
-            height: 25,
+            width: 10,
+            height: 9,
         ),       
         (
-            x: 84,
+            x: 66,
             y: 0,
-            width: 28,
-            height: 25,
+            width: 10,
+            height: 9,
         ),
         (
             x: 112,
