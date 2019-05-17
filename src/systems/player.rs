@@ -5,6 +5,9 @@ use amethyst::ecs::{Join, Read, ReadStorage, System, WriteStorage,
 use amethyst::input::InputHandler;
 use amethyst::renderer::{VirtualKeyCode};
 use amethyst::ui::{UiText};
+use amethyst::audio::{output::Output, Source};
+use amethyst::assets::AssetStorage;
+
 
 use crate::states::Player;
 use crate::states::Mover;
@@ -14,6 +17,8 @@ use crate::states::Collider;
 use crate::states::UiEntities;
 use crate::states::UiValues;
 use crate::states::{PotionSpawner, PotionInfo};
+use crate::states::Gate;
+use crate::states::SoundEffects;
 
 pub const ATTACK_H_COST: usize = 3;
 pub const ATTACK_M_COST: usize = 1;
@@ -40,12 +45,17 @@ impl<'s> System<'s> for PlayerSystem {
         Write<'s, UiValues>,
         WriteStorage<'s, UiText>,
         Write<'s, PotionSpawner>,
+        ReadStorage<'s, Gate>,
+        Read<'s, AssetStorage<Source>>,
+        ReadExpect<'s, SoundEffects>,
+        Option<Read<'s, Output>>,
     );
 
     fn run (&mut self, (mut movers, mut players, ingredients, 
             transforms, colliders, input, time, entities, ui_entities, mut ui_values,
-            mut ui_texts, mut potion_spawner): Self::SystemData) {
-
+            mut ui_texts, mut potion_spawner, gates,
+            audio_source, sound_effects, audio_output
+            ): Self::SystemData) {
         
         let mut tick = false;
         let mut h_update = false;
@@ -109,6 +119,11 @@ impl<'s> System<'s> for PlayerSystem {
                 // tell mover to jump
                 if let JumpState::Landed = mover.jump_state {
                     mover.jump_state = JumpState::Jump;
+                    if let Some(ref out_device) = audio_output.as_ref() {
+                        if let Some(sound) = audio_source.get(&sound_effects.jump) {
+                            out_device.play_once(sound, 0.2);
+                        }
+                    }
                 }
             }
 
@@ -121,6 +136,13 @@ impl<'s> System<'s> for PlayerSystem {
 
                         player.hornwort -= ATTACK_H_COST;
                         player.mushroom -= ATTACK_M_COST;
+
+                        if let Some(ref out_device) = audio_output.as_ref() {
+                            if let Some(sound) = audio_source.get(&sound_effects.potion_throw) {
+                                out_device.play_once(sound, 0.2);
+                            }
+                        }
+
 
                         let ptrans = player_transform.translation();
 
@@ -153,7 +175,12 @@ impl<'s> System<'s> for PlayerSystem {
                     player.hornwort -= HEAL_H_COST;
                     player.mushroom -= HEAL_M_COST;
 
-                    // TODO play a sound effect
+                    if let Some(ref out_device) = audio_output.as_ref() {
+                        if let Some(sound) = audio_source.get(&sound_effects.heal) {
+                            out_device.play_once(sound, 0.2);
+                        }
+                    }
+
                     player.health += HEAL_AMOUNT;
                     player.last_heal = 0.0;
 
@@ -167,13 +194,19 @@ impl<'s> System<'s> for PlayerSystem {
                 player.last_throw = 0.0;
             }
 
-
             // check for ingredient pickups
             for (e, ingredient, i_collider, i_transform) in 
                 (&*entities, &ingredients, &colliders, &transforms).join() {
                 // check for collision, if so then check for e pressed and match on resource
                 if crate::collision::check_collision(&player_collider, &player_transform, &i_collider, &i_transform) {
                     if input.key_is_down(VirtualKeyCode::S) {
+
+                        if let Some(ref out_device) = audio_output.as_ref() {
+                            if let Some(sound) = audio_source.get(&sound_effects.pickup) {
+                                out_device.play_once(sound, 0.2);
+                            }
+                        }
+
                         match ingredient {
                             Ingredient::Hornwort{count} => {
                                 player.hornwort += count;
@@ -189,6 +222,17 @@ impl<'s> System<'s> for PlayerSystem {
                 }
             }
 
+            for (gate, g_collider, g_transform) in 
+                (&gates, &colliders, &transforms).join() {
+                if crate::collision::check_collision(
+                    &player_collider, 
+                    &player_transform, 
+                    &g_collider, 
+                    &g_transform) {
+                    ui_values.win = true;
+                }
+            }
+
             if h_update {
                 if let Some(text) = ui_texts.get_mut(ui_entities.hornwort_entity) {
                     text.text = player.hornwort.to_string();
@@ -201,13 +245,18 @@ impl<'s> System<'s> for PlayerSystem {
                 }
             }
 
-            if lose {
+            if lose || ui_values.win {
                 entities.delete(ep);
             }
         }
-        
 
-        if lose {
+        if ui_values.win {
+            if let Some(text) = ui_texts.get_mut(ui_entities.game_over_entity) {
+                text.color = [0.0, 0.8, 0.0, 1.0];
+                text.text = "YOU WIN".to_string();
+            }
+        }
+        else if lose {
             // TODO - in an actual game would try and use state system
             // and implement restart mechanic
             if let Some(text) = ui_texts.get_mut(ui_entities.game_over_entity) {

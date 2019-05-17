@@ -15,9 +15,15 @@ use amethyst::ui::{
 };
 use amethyst::input::is_key_down;
 use amethyst::Trans::*;
+use amethyst::audio::{output::Output, AudioSink, OggFormat, Source, SourceHandle};
 
-pub const LEVEL_WIDTH: f32 = 800.0;
-pub const LEVEL_HEIGHT: f32 = 3000.0;
+//pub const LEVEL_WIDTH: f32 = 3000.0;
+//pub const LEVEL_HEIGHT: f32 = 600.0;
+
+pub const LEVEL_WIDTH: f32 = 3000.0;
+pub const LEVEL_HEIGHT: f32 = 600.0;
+
+
 pub const CAMERA_WIDTH: f32 = 400.0;
 pub const CAMERA_HEIGHT: f32 = 225.0;
 pub const PLATFORM_HEIGHT: f32 = 25.0;
@@ -26,6 +32,8 @@ pub const RESOURCE_WIDTH: f32 = 28.0;
 pub const RESOURCE_HEIGHT: f32 = 25.0;
 pub const PLAYER_HEIGHT: f32 = 25.0;
 pub const PLAYER_WIDTH: f32 = 28.0;
+pub const GATE_HEIGHT: f32 = 22.0;
+pub const GATE_WIDTH: f32 = 26.0;
 
 pub const POTION_SPEED: f32 = 200.0;
 
@@ -41,8 +49,17 @@ pub struct UiEntities {
 #[derive(Default)]
 pub struct UiValues {
     pub score: i32,
-    // TODO write to these from player system
     pub health: i32,
+    pub win: bool,
+}
+
+pub struct SoundEffects {
+    pub hurt: SourceHandle,
+    pub potion_throw: SourceHandle,
+    pub potion_hit: SourceHandle,
+    pub heal: SourceHandle,
+    pub jump: SourceHandle,
+    pub pickup: SourceHandle,
 }
 
 // implement a lazy spawner for simplicity..
@@ -73,11 +90,12 @@ pub struct LevelState {
 
 impl LevelState {
     fn create_entities(world: &mut World, sprite_sheet: SpriteSheetHandle){
-        // TODO create the player on the first platform
+        // create platform entities
+        let (plat_x, plat_y) = LevelState::generate_platforms(world, sprite_sheet.clone());
 
         // Create the player entity:
         let mut player_transform = Transform::default();
-        player_transform.set_xyz(LEVEL_WIDTH / 2.0, 50.0, 0.0);
+        player_transform.set_xyz(plat_x, plat_y + PLATFORM_HEIGHT/2.0 + PLAYER_HEIGHT, 0.0);
         let player_sprite_render = SpriteRender{
             sprite_sheet: sprite_sheet.clone(),
             sprite_number: 0,
@@ -90,86 +108,122 @@ impl LevelState {
             .with(player_sprite_render)
             .with(player_animation)
             .with(Player::new())
-            .with(Mover::new(0.0 + PLAYER_WIDTH / 2.0, LEVEL_WIDTH - PLAYER_WIDTH / 2.0))
+            .with(Mover::new(-100.0, LEVEL_WIDTH + 100.0))
             .with(Collider{width: 24.0, height: 25.0})
             .build();
-        // create platform entities
-        LevelState::generate_platforms(world, sprite_sheet);
     }
 
-    fn generate_platforms(world: &mut World, sprite_sheet: SpriteSheetHandle) {
-        let mut y = 2.0 * PLATFORM_HEIGHT;
-        let mut x = LEVEL_WIDTH / 2.0;
+    fn generate_platforms(world: &mut World, sprite_sheet: SpriteSheetHandle) -> (f32, f32) {
         let mut rng = rand::thread_rng();
-        while y < LEVEL_HEIGHT {
-            // TODO restrict x by max and make that affect whether we spawn or just choose a side
-            let mut platform_transform = Transform::default();
-            platform_transform.set_xyz(x, y, 0.0);
-            let platform_sprite_render = SpriteRender{
-                sprite_sheet: sprite_sheet.clone(),
-                sprite_number: 4,
-            };
-            world
-                .create_entity()
-                .with(platform_sprite_render)
-                .with(platform_transform)
-                .with(Platform{})
-                .with(Collider{width: PLATFORM_WIDTH, height: PLATFORM_HEIGHT})
-                .build();
 
-            // generate resources on this platform:
-            let min_x = x - PLATFORM_WIDTH / 2.0 + RESOURCE_WIDTH / 2.0;
-            let max_x = x + PLATFORM_WIDTH / 2.0 - RESOURCE_WIDTH / 2.0;
+        let jump_x =  PLATFORM_WIDTH + 50.0;
+        let jump_y = 70.0;
+        let wiggle_y = 30.0;
+        let wiggle_x = 35.0;
+        let mut offset = false;
 
-            LevelState::generate_resources(world, sprite_sheet.clone(), 
-                                           y + PLATFORM_HEIGHT, min_x, max_x);
-            
-            // spawn enemy
-            let mut enemy_transform = Transform::default();
-            let mut enemy_mover = Mover::new(min_x, max_x);
-            enemy_mover.velocity_x = super::systems::enemy::ENEMY_VELOCITY;
-            if rng.gen() {
-                enemy_mover.velocity_x = enemy_mover.velocity_x * -1.0;
-            }
-            enemy_transform.set_xyz(x, y + 25.0, 0.0);
-            world
-                .create_entity()
-                .with(enemy_transform)
-                .with(Enemy{})
-                .with(SpriteRender {
+        let mut gate_spawned = false;
+        let mut gate_x = 0.0;
+        let mut gate_y = 0.0;
+
+        let mut first = true;
+
+        let mut nat_y = PLATFORM_HEIGHT / 2.0;
+        let mut ret_x = 0.0;
+        let mut ret_y = 0.0;
+        while nat_y < LEVEL_HEIGHT {
+            let mut nat_x = PLATFORM_WIDTH / 2.0;
+            if offset {
+                nat_x += jump_x;
+            } 
+            offset = !offset;
+            while nat_x < LEVEL_WIDTH - PLATFORM_WIDTH / 2.0 {
+                let rand_x: f32 = rng.gen();
+                let rand_y: f32 = rng.gen();
+                let x = nat_x + wiggle_x * rand_x;
+                let y = nat_y + wiggle_y * rand_y;
+                gate_y = y;
+                gate_x = x;
+                println!("{},{}", x, y);
+
+                if first {
+                    first = false;
+                    ret_y = y;
+                    ret_x = x;
+                }
+
+                let mut platform_transform = Transform::default();
+                platform_transform.set_xyz(x, y, 0.0);
+                let platform_sprite_render = SpriteRender{
                     sprite_sheet: sprite_sheet.clone(),
-                    sprite_number: 0,
-                })
-                .with(SpriteAnimation::new(0, 2, 0, 1, 0.2, 0))
-                .with(enemy_mover)
-                .with(Collider{width: PLAYER_WIDTH, height: PLAYER_HEIGHT})
-                .build();
-            
-            // Setup next platform spawn
-            y += PLATFORM_HEIGHT + PLAYER_HEIGHT; // min allow gap for player
-            let left: bool = rng.gen();
-            let mut random: f32 = rng.gen();
-            random += 1.0;
-            if left {
-                random = random * -1.0;
-            }
-            let new_x = x + random * 90.0;
-            if new_x < 0.0 + PLATFORM_WIDTH / 2.0 || new_x > LEVEL_WIDTH - PLATFORM_WIDTH / 2.0 {
-                // transform to other direction
-                random = random * -1.0;
-            }
-            x += random * 90.0;
+                    sprite_number: 4,
+                };
+                world
+                    .create_entity()
+                    .with(platform_sprite_render)
+                    .with(platform_transform)
+                    .with(Platform{})
+                    .with(Collider{width: PLATFORM_WIDTH, height: PLATFORM_HEIGHT})
+                    .build();
 
-            random = rng.gen();
-            y += random * 45.0;
+                // generate resources on this platform:
+                let min_x = x - PLATFORM_WIDTH / 2.0 + RESOURCE_WIDTH / 2.0;
+                let max_x = x + PLATFORM_WIDTH / 2.0 - RESOURCE_WIDTH / 2.0;
 
+                LevelState::generate_resources(world, sprite_sheet.clone(), 
+                                            y + PLATFORM_HEIGHT, min_x, max_x);
+
+                // spawn gate
+                if (x >= LEVEL_WIDTH / 2.0 && y >= LEVEL_HEIGHT / 2.0) {
+                    let roll: f32 = rng.gen();
+                    if roll > 0.9 {
+                        gate_spawned = true;
+                        LevelState::spawn_gate(world, sprite_sheet.clone(),
+                            gate_x, gate_y);
+                    }
+                }
+                
+                // spawn enemy
+                if !first && rng.gen() {
+                    let mut enemy_transform = Transform::default();
+                    let mut enemy_mover = Mover::new(min_x, max_x);
+                    enemy_mover.velocity_x = super::systems::enemy::ENEMY_VELOCITY;
+                    if rng.gen() {
+                        enemy_mover.velocity_x = enemy_mover.velocity_x * -1.0;
+                    }
+                    enemy_transform.set_xyz(x, y + 25.0, 0.0);
+                    world
+                        .create_entity()
+                        .with(enemy_transform)
+                        .with(Enemy{})
+                        .with(SpriteRender {
+                            sprite_sheet: sprite_sheet.clone(),
+                            sprite_number: 0,
+                        })
+                        .with(SpriteAnimation::new(0, 2, 0, 1, 0.2, 0))
+                        .with(enemy_mover)
+                        .with(Collider{width: PLAYER_WIDTH, height: PLAYER_HEIGHT})
+                        .build();
+                }
+
+
+                nat_x += jump_x * 2.0;
+            }
+            nat_y += jump_y;
         }
+
+        if !gate_spawned {
+            LevelState::spawn_gate(world, sprite_sheet.clone(),
+            gate_x, gate_y);
+        }
+                
+        (ret_x, ret_y)
     }
 
     fn generate_resources(world: &mut World, sprite_sheet: SpriteSheetHandle,
                           y: f32, x_min: f32, x_max: f32) {
         let mut rng = rand::thread_rng();
-        let hornwort_count = rng.gen_range(1, 2);
+        let hornwort_count = rng.gen_range(0, 3);
         for _ in 0..hornwort_count {
             let mut transform = Transform::default();
             let x: f32 = rng.gen_range(x_min, x_max);
@@ -203,6 +257,42 @@ impl LevelState {
                 .build();
         }
 
+    }
+
+    fn spawn_gate(world: &mut World, sprite_sheet: SpriteSheetHandle,
+        px: f32, py: f32) {
+            let mut gate_transform = Transform::default();
+            gate_transform.set_xyz(px, py + PLATFORM_HEIGHT / 2.0 + GATE_HEIGHT / 2.0, 0.0);
+
+            world.
+                create_entity()
+                .with(gate_transform)
+                .with(Gate{})
+                .with(Collider{
+                    width: GATE_WIDTH,
+                    height: GATE_HEIGHT,
+                })
+                .with(SpriteRender {
+                    sprite_sheet: sprite_sheet,
+                    sprite_number: 3,
+                })
+                .build();
+
+        }
+    
+    fn initialize_sound(world: &mut World) {
+        let effects = {
+            let loader = world.read_resource::<Loader>();
+            SoundEffects {
+                hurt: loader.load("audio/hurt.ogg", OggFormat, (), (), &world.read_resource()),
+                potion_throw: loader.load("audio/potion_throw.ogg", OggFormat, (), (), &world.read_resource()),
+                potion_hit: loader.load("audio/potion_hit.ogg", OggFormat, (), (), &world.read_resource()),
+                jump: loader.load("audio/jump.ogg", OggFormat, (), (), &world.read_resource()),
+                pickup: loader.load("audio/pickup.ogg", OggFormat, (), (), &world.read_resource()),
+                heal: loader.load("audio/heal.ogg", OggFormat, (), (), &world.read_resource()),
+            }
+        };
+        world.add_resource(effects);
     }
 
     fn initialize_ui(world: &mut World) {
@@ -408,9 +498,11 @@ impl SimpleState for LevelState {
         let sprite_sheet_handle = LevelState::load_sprite_sheet(world);
         self.sprite_sheet = Some(sprite_sheet_handle.clone());
 
+        world.add_resource(crate::NoMusic);
         LevelState::initialize_ui(world);
         LevelState::create_entities(world, sprite_sheet_handle);
         LevelState::initialize_camera(world);
+        LevelState::initialize_sound(world);
 
         world.add_resource(PotionSpawner {
             potion: std::option::Option::None,
@@ -454,12 +546,11 @@ impl SimpleState for LevelState {
             if let Some(sprite_sheet) = &self.sprite_sheet {
                 // spawn a potion
                 
-                // TODO translate mouse x/y to world coord
                 let logical_mx = (potion_info.mx / screen_dim.0) * CAMERA_WIDTH;
-                let logical_my = (potion_info.mx / screen_dim.1) * CAMERA_HEIGHT;
+                let logical_my = (potion_info.my / screen_dim.1) * CAMERA_HEIGHT;
 
                 let world_mx = potion_info.px - CAMERA_WIDTH / 2.0 + logical_mx;
-                let world_my = potion_info.py - CAMERA_HEIGHT / 2.0 + logical_my;
+                let world_my = potion_info.py + CAMERA_HEIGHT / 2.0 - logical_my;
 
                 let velocity = 
                     Vector3::new(
@@ -482,11 +573,12 @@ impl SimpleState for LevelState {
                         sprite_number: 2,
                     })
                     .with(Mover{
+                        gravity: 0.5,
                         velocity_x: velocity.x * POTION_SPEED,
                         velocity_y: velocity.y * POTION_SPEED,
                         jump_state: JumpState::Airborne,
-                        min_x: 0.0,
-                        max_x: LEVEL_WIDTH,
+                        min_x: -100.0,
+                        max_x: LEVEL_WIDTH + 100.0,
                     })
                     .with(Potion{
                         width: 10.0, // hacky way to manage our own collisions
@@ -552,6 +644,7 @@ pub struct Mover {
     pub jump_state: JumpState,
     pub min_x: f32,
     pub max_x: f32,
+    pub gravity: f32,
 }
 
 impl Mover {
@@ -562,6 +655,7 @@ impl Mover {
             jump_state: JumpState::Airborne,
             min_x,
             max_x,
+            gravity: 1.0,
         }
     }
 }
@@ -639,5 +733,12 @@ pub struct Potion {
 }
 
 impl Component for Potion {
+    type Storage = VecStorage<Self>;
+}
+
+pub struct Gate {
+}
+
+impl Component for Gate {
     type Storage = VecStorage<Self>;
 }

@@ -31,14 +31,24 @@ impl<'s> System<'s> for MoverSystem {
                        platforms, colliders, time,
                        entities): Self::SystemData) {
         let dt = time.delta_seconds();
-        let dv = dt * -GRAVITY;
         for (mover, transform) in (&mut movers, &mut transforms).join() {
             if let JumpState::Jump = mover.jump_state {
                 mover.velocity_y = mover.velocity_y + JUMP_VELOCITY;
                 mover.jump_state = JumpState::Airborne;
             }
+
             // translate distance
-            transform.translate_y(1.2 * mover.velocity_y * dt + 0.5 * dv * dt);
+            // fix for large time step since systems have variable time step
+            // we can warp through walls since we have primitive collision detection
+            // and don't force fixed update intervals (this'll do):
+            let dv = dt * -GRAVITY * mover.gravity;
+            let mut y_dist = 1.2 * mover.velocity_y * dt + 0.5 * dv * dt;
+            if (y_dist > crate::states::PLATFORM_HEIGHT / 2.0 ||
+                dt > 0.12) {
+                y_dist = 0.0; // don't support moving because we
+                // could still slide left if we are near edge of platform
+            }
+            transform.translate_y(y_dist);
             transform.translate_x(mover.velocity_x * dt);
 
             if transform.translation().x > mover.max_x {

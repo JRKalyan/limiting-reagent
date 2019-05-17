@@ -2,6 +2,8 @@ use amethyst::{
     core::Transform,
     ecs::{Join, Read, System, WriteStorage, ReadStorage, 
         Entities, ReadExpect, Write},
+    audio::{output::Output, Source},
+    assets::AssetStorage,
 };
 use amethyst::ui::{UiText};
 
@@ -13,6 +15,7 @@ use crate::states::Potion;
 use crate::collision::check_collision;
 use crate::states::UiEntities;
 use crate::states::UiValues;
+use crate::states::SoundEffects;
 
 
 pub struct PotionSystem {
@@ -29,11 +32,15 @@ impl<'s> System<'s> for PotionSystem {
         ReadExpect<'s, UiEntities>,
         Write<'s, UiValues>,
         WriteStorage<'s, UiText>,
+        Read<'s, AssetStorage<Source>>,
+        ReadExpect<'s, SoundEffects>,
+        Option<Read<'s, Output>>,
     );
 
     fn run(&mut self, 
         (entities, transforms, enemies, platforms, potions, colliders,
-         ui_entities, mut ui_values, mut ui_texts): Self::SystemData) {
+         ui_entities, mut ui_values, mut ui_texts,
+         audio_source, sound_effects, audio_output): Self::SystemData) {
         //
         for (ep, potion, p_transform) in 
             (&* entities, &potions, &transforms).join() {
@@ -51,6 +58,13 @@ impl<'s> System<'s> for PotionSystem {
                         ui_values.score += 1;
                         text.text = format!("SCORE: {}", ui_values.score).to_string();
                     }
+
+                    if let Some(ref out_device) = audio_output.as_ref() {
+                        if let Some(sound) = audio_source.get(&sound_effects.potion_hit) {
+                            out_device.play_once(sound, 0.2);
+                        }
+                    }
+
 
                     entities.delete(e).unwrap();
                     entities.delete(ep).unwrap();
