@@ -17,7 +17,7 @@ pub struct NoMusic;
 
 fn main() -> amethyst::Result<()> {
 
-    //amethyst::start_logger(Default::default());
+    amethyst::start_logger(Default::default());
 
     let display_config_path = 
         format!("{}/resources/display_config.ron", application_root_dir());
@@ -50,7 +50,7 @@ fn main() -> amethyst::Result<()> {
         .with_bundle(input_bundle)?
         .with_bundle(UiBundle::<String, String>::new())?
         .with_bundle(AudioBundle::new(|_: &mut NoMusic|{None}))?
-        .with(systems::PlayerSystem{health_tick_rate: 5.0, last_tick: 0.0}, 
+        .with(systems::PlayerSystem{health_tick_rate: 1.0, last_tick: 0.0}, 
             "player_system",  &["input_system"])
         .with(systems::EnemySystem{}, "enemy_system", &["player_system"])
         .with(systems::MoverSystem{}, "mover_system", &["enemy_system"])

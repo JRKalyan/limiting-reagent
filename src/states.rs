@@ -17,21 +17,18 @@ use amethyst::input::is_key_down;
 use amethyst::Trans::*;
 use amethyst::audio::{output::Output, AudioSink, OggFormat, Source, SourceHandle};
 
-//pub const LEVEL_WIDTH: f32 = 3000.0;
-//pub const LEVEL_HEIGHT: f32 = 600.0;
-
 pub const LEVEL_WIDTH: f32 = 3000.0;
 pub const LEVEL_HEIGHT: f32 = 600.0;
 
-
 pub const CAMERA_WIDTH: f32 = 400.0;
 pub const CAMERA_HEIGHT: f32 = 225.0;
+
 pub const PLATFORM_HEIGHT: f32 = 25.0;
 pub const PLATFORM_WIDTH: f32 = 100.0;
-pub const RESOURCE_WIDTH: f32 = 28.0;
-pub const RESOURCE_HEIGHT: f32 = 25.0;
+pub const RESOURCE_WIDTH: f32 = 22.0;
+pub const RESOURCE_HEIGHT: f32 = 16.0;
 pub const PLAYER_HEIGHT: f32 = 25.0;
-pub const PLAYER_WIDTH: f32 = 28.0;
+pub const PLAYER_WIDTH: f32 = 10.0;
 pub const GATE_HEIGHT: f32 = 22.0;
 pub const GATE_WIDTH: f32 = 26.0;
 
@@ -100,7 +97,7 @@ impl LevelState {
             sprite_sheet: sprite_sheet.clone(),
             sprite_number: 0,
         };
-        let player_animation = SpriteAnimation::new(0, 2, 0, 1, 0.2, 0);
+        let player_animation = SpriteAnimation::new(1, 6, 0, 1, 0.1, 7);
 
         world
             .create_entity()
@@ -144,19 +141,12 @@ impl LevelState {
                 let y = nat_y + wiggle_y * rand_y;
                 gate_y = y;
                 gate_x = x;
-                println!("{},{}", x, y);
-
-                if first {
-                    first = false;
-                    ret_y = y;
-                    ret_x = x;
-                }
 
                 let mut platform_transform = Transform::default();
                 platform_transform.set_xyz(x, y, 0.0);
                 let platform_sprite_render = SpriteRender{
                     sprite_sheet: sprite_sheet.clone(),
-                    sprite_number: 4,
+                    sprite_number: 10,
                 };
                 world
                     .create_entity()
@@ -171,12 +161,12 @@ impl LevelState {
                 let max_x = x + PLATFORM_WIDTH / 2.0 - RESOURCE_WIDTH / 2.0;
 
                 LevelState::generate_resources(world, sprite_sheet.clone(), 
-                                            y + PLATFORM_HEIGHT, min_x, max_x);
+                                            y + PLATFORM_HEIGHT / 2.0 + RESOURCE_HEIGHT / 2.0, min_x, max_x);
 
                 // spawn gate
-                if (x >= LEVEL_WIDTH / 2.0 && y >= LEVEL_HEIGHT / 2.0) {
+                if !gate_spawned && (x >= LEVEL_WIDTH / 2.0 && y >= LEVEL_HEIGHT / 2.0) {
                     let roll: f32 = rng.gen();
-                    if roll > 0.9 {
+                    if roll > 0.7 {
                         gate_spawned = true;
                         LevelState::spawn_gate(world, sprite_sheet.clone(),
                             gate_x, gate_y);
@@ -198,12 +188,18 @@ impl LevelState {
                         .with(Enemy{})
                         .with(SpriteRender {
                             sprite_sheet: sprite_sheet.clone(),
-                            sprite_number: 0,
+                            sprite_number: 13,
                         })
-                        .with(SpriteAnimation::new(0, 2, 0, 1, 0.2, 0))
+                        .with(SpriteAnimation::new(14, 6, 13, 1, 0.1, 13))
                         .with(enemy_mover)
                         .with(Collider{width: PLAYER_WIDTH, height: PLAYER_HEIGHT})
                         .build();
+                }
+
+                if first {
+                    first = false;
+                    ret_y = y;
+                    ret_x = x;
                 }
 
 
@@ -225,6 +221,9 @@ impl LevelState {
         let mut rng = rand::thread_rng();
         let hornwort_count = rng.gen_range(0, 3);
         for _ in 0..hornwort_count {
+            if rng.gen() {
+                continue;
+            }
             let mut transform = Transform::default();
             let x: f32 = rng.gen_range(x_min, x_max);
             transform.set_xyz(x, y, -1.0); // TODO make sure Z value is read
@@ -234,7 +233,7 @@ impl LevelState {
                 .with(Collider{width: RESOURCE_WIDTH, height: RESOURCE_HEIGHT})
                 .with(SpriteRender {
                     sprite_sheet: sprite_sheet.clone(),
-                    sprite_number: 5,
+                    sprite_number: 12,
                 })
                 .with(Ingredient::Hornwort{count: 1})
                 .build();
@@ -251,7 +250,7 @@ impl LevelState {
                 .with(Collider{width: RESOURCE_WIDTH, height: RESOURCE_HEIGHT})
                 .with(SpriteRender {
                     sprite_sheet: sprite_sheet.clone(),
-                    sprite_number: 6,
+                    sprite_number: 11,
                 })
                 .with(Ingredient::Mushroom{count: 1})
                 .build();
@@ -274,7 +273,7 @@ impl LevelState {
                 })
                 .with(SpriteRender {
                     sprite_sheet: sprite_sheet,
-                    sprite_number: 3,
+                    sprite_number: 9,
                 })
                 .build();
 
@@ -570,7 +569,7 @@ impl SimpleState for LevelState {
                     .with(potion_transform)
                     .with(SpriteRender{
                         sprite_sheet: sprite_sheet.clone(),
-                        sprite_number: 2,
+                        sprite_number: 8,
                     })
                     .with(Mover{
                         gravity: 0.5,
@@ -581,8 +580,8 @@ impl SimpleState for LevelState {
                         max_x: LEVEL_WIDTH + 100.0,
                     })
                     .with(Potion{
-                        width: 10.0, // hacky way to manage our own collisions
-                        height: 10.0,
+                        width: 8.0, // hacky way to manage our own collisions
+                        height: 9.0,
                     })
                     .build();
             }
